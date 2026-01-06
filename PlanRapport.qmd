@@ -1,0 +1,494 @@
+---
+title: "Plan Bourdaisière"
+author: "Nicolas Saby"
+format:
+  html: 
+    theme: journal
+    fontsize: 1.1em
+    linestretch: 1.7
+    code-fold: true
+    code-summary: "Show the code"
+    toc: true
+    self-contained: true
+editor: source
+---
+
+## Objectifs
+
+Le projet proposé vise à répondre à l’enjeu de gestion du domaine de la Bourdaisière. L’objectif du projet est d’apporter une meilleure connaissance des sols au travers d’une campagne de prospection et de description des sols
+
+L’approche sera effectuée à double échelle : sur l’ensemble du domaine pour avoir une bonne connaissance du patrimoine ‘sol’, et également à l’échelle de la zone de plantations, afin d’avoir une connaissance plus fine de la variabilité des sols et de leurs propriétés. On se focalisera notamment sur le pH, paramètre identifié comme essentiel pour la croissance des plantes cultivées et ornementales.
+
+## Initialisatoins
+
+Dans cette partie du code, on charge les librairies dont celles pour faire du SIG. On charge aussi les données SIG dans R :
+
+-   le vecteur des contours de la zone cultivée: zc,
+
+-   le vecteur des contours du parc: lb,
+
+-   le raster des altitude: mnt.
+
+Deux opérations SIG sont effectuées ici. la projection d'un vecteur dans la bon référentiel (crs = 2154) et le calcul de la pente.
+
+```{r initialisations}
+#| warning: false
+
+
+library(terra)
+library(sf)
+library(foreach)
+library(ggplot2)
+library(ggpubr)
+library(DT)
+library(tmap)
+library(quarto)
+
+# la zone cultivée
+zc <- read_sf("SIG/zone_cultivee.shp") %>%
+  st_transform(crs= 2154) # changer la projection
+
+# les limites du parcs
+lb <- read_sf("SIG/limite_Bourdaisiere.shp")
+
+# la zone à exclure
+exclure <- read_sf("SIG/Zones2.shp")
+
+# le raster de l'altitude
+mnt <- rast("SIG/mnt_final.tiff")
+
+```
+
+Voici la carte des covariables des altitudes et des pentes.
+
+```{r plotmntslp2}
+plot(mnt)
+lines(lb,col="4")
+lines(zc)
+lines(exclure,col= "2")
+```
+
+## extraire la zone des bâtis
+
+Nous allons travailler en raster en créant un masque avec des valeurs 1 si le pixel est hors zone des bâtis mais dans la zone d'étude et NA sinon.
+
+```{r}
+raster <- rasterize(exclure,
+                    mnt)
+
+Masque <- ifel(
+  test = (!is.na(mnt))&is.na(raster),
+  yes = 1,
+  no = NA
+  )
+
+plot(Masque)
+
+mnt_modif <- crop(mnt,
+                  Masque, 
+                  mask=TRUE
+                  )
+
+
+# calcul de la pente
+slp <- terra::terrain(mnt_modif , 
+                      v="slope"
+                      )
+
+```
+
+Le résultat
+
+```{r plotmntslp}
+plot(mnt_modif)
+lines(lb,col="4")
+lines(zc)
+lines(exclure,col= "2")
+```
+
+## Calcul du plan pour le parc: espace des covariables
+
+### Stratégie
+
+Les cartes de l'altitude et de la pente peuvent être utilisées pour cartographier la variable d'étude, par exemple à l'aide d'un modèle de régression linéaire multiple ou d'une forêt aléatoire. Mais il est possible également d'utiliser cette information pour stratifier l'espace géographique afin de mettre en place un plan d'écahantillonnage aléatoire stratifé (SRSS).
+
+L'option la plus simple pour un échantillonnage de la couverture dans l'espace des covariable (CSC) consiste à regrouper les cellules des rasters à l'aide de l'algorithme de regroupement des k moyennes (k means) dans l'espace des covariables. Dans cette méthode, la distance quadratique moyenne la plus courte est minimisée, mais la distance n'est pas mesurée dans l'espace géographique mais dans un espace des variables.
+
+Pour implémanter le SRSS, nous allons tirer au hasard au sein des strates ou clusters des pixels permettant de déterminer la positions des sites d'observations. La bonne répartition géographique et dans l'espace des covariables devraient permettre de construire un modèle statistique pour produire une carte.
+
+Sachant que chaque binôme étudiant pourra effectuer 4 sondages sur une demi-journée, on visera à ce que le plan d’échantillonnage permette à chaque binôme d’avoir les 4 sondages situés dans des conditions d’altitude et de pente les plus variables possible, afin d’observer une variabilité des sols supposée maximale. On s’attachera donc à employer des techniques statistiques permettant de stratifier le site d’étude en quatre zones les plus contrastées possible du point de vue topographique.
+
+### Calcul des clusters ou strates
+
+Mise en oeuvre de l'algorithme kmeans sur le tableau des valeurs des pixels
+
+```{r Calculkmeans}
+# transformer la pile de raster en un tableau
+tt = as.data.frame(c(mnt_modif,slp),
+                   xy=TRUE,
+                   na.rm=TRUE
+                   )
+
+colnames(tt)[3:4] <- c("alt","pente")
+
+tt$id <- 1:nrow(tt) # ajout d'un identifiant de ligne
+
+#choix du nombre de cluster
+n<-4
+
+#Calcul des clusters
+set.seed(314)
+myClusters <- kmeans(scale(tt[,c("alt","pente")]),
+                     centers=n,
+                     iter.max=1000,
+                     nstart=20)
+
+tt$clusters <- myClusters$cluster
+
+```
+
+Il est possible de représenter les n clusters dans l'espace des variables et dans l'espace géographique
+
+```{r}
+p1 = ggplot(tt) +
+  geom_tile(mapping = aes(x = x, y = y, 
+                          fill = factor(clusters))) +
+  scale_fill_discrete(name = "cluster") +
+  scale_x_continuous(name = "") +
+  scale_y_continuous(name = "") +
+  coord_fixed() +
+  theme(legend.position="none")
+
+
+p2 = ggplot(tt) +
+  geom_point(mapping=aes(y=alt      ,
+                         x=pente,
+                         colour=factor(clusters)),
+             size = .91) +
+  scale_y_continuous(name = "Elevation") +
+  scale_x_continuous(name = "Slope") +
+  theme(legend.position="none")
+
+ggarrange(p2,p1,ncol = 2)
+
+```
+
+### Selection des positions des sites
+
+Tirage au sort de pixels au sein des strates
+
+```{r}
+set.seed(5)
+sel <- foreach( cl = 1:n,
+               .combine = c ) %do% {
+                 
+                 pix <- tt[tt$clusters == cl , ]
+                 sample( x = pix$id , 
+                         size = 13
+                         )
+               }
+
+
+mysample <- tt[sel, ]
+
+# une alternative 
+# unlist(
+#   tapply(tt$id,
+#        tt$clusters,
+#        FUN = sample, size= 13,
+#        simplify = TRUE
+#        )
+# )
+
+
+resolution = 5
+mysample$x1<-jitter(mysample$x,resolution[1]/2)
+mysample$y1<-jitter(mysample$y,resolution[1]/2)
+
+# ajout du numéro de binome
+mysample$binome <- factor(rep(1:13,n))
+
+```
+
+Il est possible de représenter les sites tirés au siein des n clusters dans l'espace des variables et dans l'espace géographique
+
+```{r}
+p1 = ggplot(tt) +
+  geom_tile(mapping = aes(x = x, y = y, 
+                          fill = factor(clusters))) +
+  scale_fill_discrete(name = "cluster") +
+    geom_point(data=mysample,mapping=aes(x=x1,y=y1),size=2) +
+  scale_x_continuous(name = "") +
+  scale_y_continuous(name = "") +
+  coord_fixed() +
+  theme(legend.position="none")
+
+
+p2 = ggplot(tt) +
+  geom_point(mapping=aes(y=alt      ,
+                         x=pente,
+                         colour=factor(clusters)),
+             size = .91) +
+    geom_point(data=mysample,
+               mapping=aes(y=alt ,
+                           x=pente),
+               size=1.5) +
+
+  scale_y_continuous(name = "Elevation") +
+  scale_x_continuous(name = "Slope") +
+  theme(legend.position="none")
+
+ggarrange(p2,p1,ncol = 2)
+
+```
+
+### Exportation
+
+```{r}
+mysample %>%
+  st_as_sf(coords=c("x","y"),
+           crs = 2154) %>%
+  st_write("PointsParc.shp",
+           delete_dsn = TRUE)
+```
+
+
+```{r}
+mysample %>%
+  dplyr::select(-x,-y) %>% 
+datatable(
+    filter = 'top',
+    rownames = FALSE,
+    # colnames = ColHAPPOP ,
+    extensions = 'Buttons', 
+    options = list(
+      dom = 'Bfrtip',
+      buttons =
+        list('colvis', "copy", list(
+          extend = 'collection',
+          buttons = 
+            list(
+            list(extend = 'csv', 
+                 filename ="Parc"), 
+            list(extend = 'excel', 
+                 filename = "Parc")
+            ),
+          text = 'Download'
+        )
+        )
+      )
+    )
+
+```
+
+## Calcul du plan pour la zone cultivée
+
+### Stratégie
+
+Dans ce cas, la stratégie ne peut s'appuyer sur les covariables. Nous n'avons pas d'a priori. Nous allons répartir les points de manière optimisée dans l'espace afin de pouvoir utiliser des techniques d'interpolation spatiale.
+
+On pourrait utiliser une grille systématique mais la forme de la zone d'étude peut produire des échantillonnage avec des zones sans observations au niveau des contour
+
+### Preparation de la zone d'étude
+
+il faut créer un raster de la zone.
+On va simplement extraire les pixels du raster alt sur la zone cultivée
+
+```{r}
+zone2 <- crop(mnt_modif,
+                  zc, 
+                  mask=TRUE
+                  )
+plot(zone2)
+
+
+```
+
+
+
+### Calcul des strates compactes géographiques
+
+```{r}
+#| warning: false
+
+# transformer en sp par raster... pas simple !!
+library(raster)
+y <- raster(zone2)
+z <- as(y, "SpatialPixels") # attention ! topologie de spatialpixels 
+
+library(spcosa)
+n <- 50
+set.seed(314)
+
+Messtrates <- spcosa::stratify(
+  z, 
+  nStrata = n, 
+  equalArea = FALSE,
+  nTry = 10
+  )
+
+MonEch <- spsample(Messtrates)
+
+```
+
+Le package spcosa propose une fonction pour faire une carte des sites d'écahntillonnages et des strates
+
+```{r}
+sc = plot(Messtrates ,MonEch)
+sc
+```
+
+
+### Essai d'un systematique
+
+On teste  la production d'un échantillonnage systématique pour se rendre compte du gain de répartition des points
+
+```{r}
+
+set.seed(5)
+grille = spatSample(
+  zone2,
+  method = "regular",
+  size = 51,
+  na.rm=TRUE,
+  as.points=TRUE,
+  xy=TRUE)
+
+
+gr = tm_shape(zone2) + 
+  tm_raster() +
+  tm_shape(as(grille,"Spatial")  )+ 
+  tm_dots()
+
+```
+
+voici une comparaison de la répartition des points avec en rouge le systématique.
+
+on garde donc le spatialement optimisé.
+
+```{r}
+
+sc +
+  geom_point(data = 
+               as.data.frame( coordinates(as(grille,"Spatial") )),
+             aes(x,y),
+             col= "red")
+
+
+```
+
+### Exportation
+
+```{r}
+as(MonEch@sample,"sf") %>%
+  mutate(id = rownames(.)) %>%
+  st_write("PointsZC.shp",
+           delete_dsn = TRUE)
+```
+
+
+```{r}
+MonEch@sample %>%
+  as.data.frame() %>%
+  mutate( ID = dplyr::row_number()) %>%
+datatable(
+    filter = 'top',
+    rownames = FALSE,
+    # colnames = ColHAPPOP ,
+    extensions = 'Buttons', 
+    options = list(
+      dom = 'Bfrtip',
+      buttons =
+        list('colvis', "copy", list(
+          extend = 'collection',
+          buttons = 
+            list(
+            list(extend = 'csv', 
+                 filename ="ZC"), 
+            list(extend = 'excel', 
+                 filename = "ZC")
+            ),
+          text = 'Download'
+        )
+        )
+      )
+    )
+
+```
+
+### Ajout de nouveaux sites pour l'année 2
+
+Pour l'année 2, 50 nouveaux points peuvent être sélectionnés afin de compléter la grille et améliorer la couverture spatiale.
+
+
+Une solution consiste à placer les points de manière optimiser entre les observations existantes afin de compléter la couverture spatiale de manière homogène. Pour cela, on utilise l'argument `priorPoints` de la fonction `stratify`.
+
+```{r}
+set.seed(315)
+
+Messtrates_v2 <- spcosa::stratify(
+  z, 
+  nStrata = n+50, 
+  priorPoints = MonEch@sample,
+  equalArea = FALSE,
+  nTry = 10
+  )
+
+```
+
+```{r}
+MonEch_v2 <- spsample(Messtrates_v2)
+sc = plot(Messtrates_v2 ,MonEch_v2)
+sc
+
+```
+### Exportation
+
+```{r}
+
+
+as(MonEch_v2@sample,"sf") %>%
+  mutate(id = rownames(.),
+         campagne = ifelse(MonEch_v2@isPriorPoint,
+                           1 ,2
+                           ) 
+         ) %>%
+  st_write("output/PointsZC_v2.shp",
+           delete_dsn = TRUE)
+```
+
+
+```{r}
+MonEch_v2@sample %>%
+  as.data.frame() %>%
+  mutate( ID = dplyr::row_number(),
+         campagne = ifelse(MonEch_v2@isPriorPoint,
+                           1 ,2
+                           )
+         ) %>%
+datatable(
+    filter = 'top',
+    rownames = FALSE,
+    # colnames = ColHAPPOP ,
+    extensions = 'Buttons', 
+    options = list(
+      dom = 'Bfrtip',
+      buttons =
+        list('colvis', "copy", list(
+          extend = 'collection',
+          buttons = 
+            list(
+            list(extend = 'csv', 
+                 filename ="ZC"), 
+            list(extend = 'excel', 
+                 filename = "ZC")
+            ),
+          text = 'Download'
+        )
+        )
+      )
+    )
+
+```
+
+
