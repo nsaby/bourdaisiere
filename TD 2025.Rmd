@@ -32,3 +32,21 @@ tm_shape(strate) + tm_raster("clusters") +
 
 ```
 
+Tirer au hasard 4 points par strates
+
+- avec st_sample
+
+```{r}
+
+UE2026 <- spatSample(strate[[4]] ,
+           size = 4,
+           as.points=TRUE,
+           method= "stratified")
+
+
+tm_shape(strate) + tm_raster("clusters") +
+  tm_shape(UE2025) + tm_dots() +
+  tm_shape(UE2026) + tm_dots("red")
+
+```
+
