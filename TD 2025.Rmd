@@ -12,7 +12,8 @@ on tire au hasard dans les strates 4 nouveaux points pour commencer
 Pour cela il faut charger les strates en premier lieu
 
 ```{r}
-set.seed(1234)
+# set.seed(110999)
+set.seed(3458)
 
 library(terra)
 strate <- rast("output/strates.tiff")
@@ -59,18 +60,37 @@ tm_shape(strate) +
 
 ```
 
+modification des coordonnées dans un cercle de 10 m
+
+```{r}
+
+mysample <- cbind.data.frame(
+  geom(UE2026),
+  Strate = UE2026$clusters)
+
+resolution = 7
+mysample$x1<-jitter(mysample$x,resolution)
+mysample$y1<-jitter(mysample$y,resolution)
+
+```
+
+
 Exportation du shape file
 
 ```{r}
 
-terra::writeVector(UE2026,
-                   filename = "output/EchantDomaine2026.shp",
-                   overwrite = TRUE
+library(sf)
+ptv <- st_as_sf(mysample,
+                coords = c("x1","y1") ,
+                crs="+init=epsg:2154"
+)
+
+
+st_write(ptv,
+                   dsn = "output/EchantDomaine2026.shp",
+                   delete_dsn = TRUE
                    )
 
-cbind.data.frame(
-  geom(UE2026),
-  Strate = UE2026$clusters)
 
 ```
 
