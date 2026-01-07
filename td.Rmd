@@ -1,0 +1,183 @@
+---
+title: "TD 2"
+author: "Nicolas Saby"
+date: "2026-01-07"
+output: html_document
+---
+
+# Initialisations
+
+Charger les données et les librairies
+
+```{r}
+library(terra)
+library(tmap)
+library(sp)
+
+set.seed(2334556)
+
+champ <- read.csv('https://raw.githubusercontent.com/nsaby/cours-echantillonnage/refs/heads/main/data/simulatedField_1Exp25.csv')
+
+# création du raster
+champSP.terra <- rast( champ, type="xyz")
+
+```
+
+# Plan SI: aléatoire simple
+
+## pour n = 20
+
+```{r}
+n = 20
+
+MonEch <- spatSample(
+  champSP.terra,
+  size = n ,
+  method = "random", 
+  na.rm = TRUE,
+  as.points = TRUE,
+  xy=TRUE,
+  values = TRUE
+)
+
+SI <- tm_shape(champSP.terra) +
+  tm_raster()+
+  tm_shape(MonEch)+
+  tm_symbols()+
+  tm_layout(legend.outside = TRUE)
+
+SI
+
+```
+
+### Estimation
+Estimations des moyennes et intervalles de confiances
+
+
+```{r}
+
+MoyEst <- mean(MonEch$sim1)
+# Variance d'échantillonnage de MoyEst
+V <- var(MonEch$sim1) / n
+zalpha <- qnorm(p = 1- (0.05/2), mean = 0, sd = 1)
+
+IC <- zalpha * sqrt(V)
+
+resSI20 <- cbind(n = n ,
+               MoyEst,
+               ICbas = MoyEst - IC,
+               ICHaut =MoyEst + IC)
+
+resSI20
+
+```
+
+
+## pour n = 40
+
+```{r}
+n = 40
+
+MonEch <- spatSample(
+  champSP.terra,
+  size = n ,
+  method = "random", 
+  na.rm = TRUE,
+  as.points = TRUE,
+  xy=TRUE,
+  values = TRUE
+)
+
+SI <- tm_shape(champSP.terra) +
+  tm_raster()+
+  tm_shape(MonEch)+
+  tm_symbols()+
+  tm_layout(legend.outside = TRUE)
+
+SI
+
+```
+
+### Estimation
+Estimations des moyennes et intervalles de confiances
+
+
+```{r}
+
+MoyEst <- mean(MonEch$sim1)
+# Variance d'échantillonnage de MoyEst
+V <- var(MonEch$sim1) / n
+zalpha <- qnorm(p = 1- (0.05/2), mean = 0, sd = 1)
+
+IC <- zalpha * sqrt(V)
+
+resSI40 <- cbind(n = n ,
+               MoyEst,
+               ICbas = MoyEst - IC,
+               ICHaut =MoyEst + IC)
+
+resSI40
+
+```
+
+
+
+## pour n = 60
+
+```{r}
+n = 60
+
+MonEch <- spatSample(
+  champSP.terra,
+  size = n ,
+  method = "random", 
+  na.rm = TRUE,
+  as.points = TRUE,
+  xy=TRUE,
+  values = TRUE
+)
+
+SI <- tm_shape(champSP.terra) +
+  tm_raster()+
+  tm_shape(MonEch)+
+  tm_symbols()+
+  tm_layout(legend.outside = TRUE)
+
+SI
+
+```
+
+### Estimation
+Estimations des moyennes et intervalles de confiances
+
+
+```{r}
+
+MoyEst <- mean(MonEch$sim1)
+# Variance d'échantillonnage de MoyEst
+V <- var(MonEch$sim1) / n
+zalpha <- qnorm(p = 1- (0.05/2), mean = 0, sd = 1)
+
+IC <- zalpha * sqrt(V)
+
+resSI60 <- cbind(n = n ,
+               MoyEst,
+               ICbas = MoyEst - IC,
+               ICHaut =MoyEst + IC)
+
+resSI60
+
+```
+
+# Synthèse
+
+```{r}
+
+
+resSI20
+resSI40
+resSI60
+
+```
+
+

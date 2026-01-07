@@ -179,6 +179,7 @@ Tirage au sort de pixels au sein des strates
 
 ```{r}
 set.seed(5)
+
 sel <- foreach( cl = 1:n,
                .combine = c ) %do% {
                  
@@ -207,6 +208,10 @@ mysample$y1<-jitter(mysample$y,resolution[1]/2)
 
 # ajout du numéro de binome
 mysample$binome <- factor(rep(1:13,n))
+
+writeRaster(rast(tt),
+            file = "output/strates.tiff",
+            overwrite=TRUE)
 
 ```
 
@@ -248,7 +253,7 @@ ggarrange(p2,p1,ncol = 2)
 mysample %>%
   st_as_sf(coords=c("x","y"),
            crs = 2154) %>%
-  st_write("PointsParc.shp",
+  st_write("output/PointsParc.shp",
            delete_dsn = TRUE)
 ```
 
@@ -281,6 +286,19 @@ datatable(
 
 ```
 
+### Ajout des points 2024
+
+Nous pouvons ajouter 28 pointsà savoir 3 par binôme et 7 par strate.
+
+```{r}
+#total sample size
+n <- 28
+
+
+
+```
+
+
 ## Calcul du plan pour la zone cultivée
 
 ### Stratégie
@@ -301,6 +319,10 @@ zone2 <- crop(mnt_modif,
                   )
 plot(zone2)
 
+terra::writeRaster(zone2, 
+                   file="output/zoneCult.tiff",
+                   overwrite=TRUE
+                   )
 
 ```
 
@@ -457,6 +479,7 @@ as(MonEch_v2@sample,"sf") %>%
            delete_dsn = TRUE)
 ```
 
+En tableau
 
 ```{r}
 MonEch_v2@sample %>%
