@@ -12,6 +12,8 @@ on tire au hasard dans les strates 4 nouveaux points pour commencer
 Pour cela il faut charger les strates en premier lieu
 
 ```{r}
+set.seed(1234)
+
 library(terra)
 strate <- rast("output/strates.tiff")
 crs(strate) <- "+init=epsg:2154"
@@ -51,16 +53,25 @@ tm_shape(strate) +
   tm_shape(UE2025) + 
   tm_dots() +
   tm_shape(UE2026) +
-  tm_symbols(fill = "clusters",size = .3,
+  tm_symbols(fill = "clusters",size = .6,
           fill.scale = tm_scale_categorical(n=4)
 )
 
 ```
+
 Exportation du shape file
 
 ```{r}
 
-terra::writeVector(UE2026)
+terra::writeVector(UE2026,
+                   filename = "output/EchantDomaine2026.shp",
+                   overwrite = TRUE
+                   )
+
+cbind.data.frame(
+  geom(UE2026),
+  Strate = UE2026$clusters)
 
 ```
+
 
