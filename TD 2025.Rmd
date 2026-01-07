@@ -14,9 +14,21 @@ Pour cela il faut charger les strates en premier lieu
 ```{r}
 library(terra)
 strate <- rast("output/strates.tiff")
-
+crs(strate) <- "+init=epsg:2154"
 plot(strate)
 
 ```
 
+Lire les anciennes positions des unités d'échantillonnage
+
+```{r}
+UE2025 <- vect("output/PointsParc.shp")
+# UE2025 <- read_sf("output/PointsParc.shp")
+
+library(tmap)
+
+tm_shape(strate) + tm_raster("clusters") +
+  tm_shape(UE2025) + tm_dots()
+
+```
 
