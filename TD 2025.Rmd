@@ -1,0 +1,22 @@
+---
+title: "TD2026"
+author: "Nicolas Saby"
+date: "2026-01-07"
+output: html_document
+---
+
+# La zone du domaine
+
+on tire au hasard dans les strates 4 nouveaux points pour commencer
+
+Pour cela il faut charger les strates en premier lieu
+
+```{r}
+library(terra)
+strate <- rast("output/strates.tiff")
+
+plot(strate)
+
+```
+
+
