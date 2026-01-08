@@ -326,9 +326,9 @@ terra::writeRaster(zone2,
 
 ```
 
+### Campagne 1
 
-
-### Calcul des strates compactes géographiques
+#### Calcul des strates compactes géographiques
 
 ```{r}
 #| warning: false
@@ -361,7 +361,7 @@ sc
 ```
 
 
-### Essai d'un systematique
+#### Essai d'un systematique
 
 On teste  la production d'un échantillonnage systématique pour se rendre compte du gain de répartition des points
 
@@ -399,12 +399,12 @@ sc +
 
 ```
 
-### Exportation
+#### Exportation
 
 ```{r}
 as(MonEch@sample,"sf") %>%
   mutate(id = rownames(.)) %>%
-  st_write("PointsZC.shp",
+  st_write("output/PointsZC.shp",
            delete_dsn = TRUE)
 ```
 
@@ -438,7 +438,7 @@ datatable(
 
 ```
 
-### Ajout de nouveaux sites pour l'année 2
+### Ajout de nouveaux sites pour campagne 2
 
 Pour l'année 2, 50 nouveaux points peuvent être sélectionnés afin de compléter la grille et améliorer la couverture spatiale.
 
@@ -458,35 +458,136 @@ Messtrates_v2 <- spcosa::stratify(
 
 ```
 
+Faire le tirage et un dessin 
+
 ```{r}
+
 MonEch_v2 <- spsample(Messtrates_v2)
+
 sc = plot(Messtrates_v2 ,MonEch_v2)
 sc
 
 ```
-### Exportation
+
+#### Exportation
+
+un tableau est créé pour rassembler les coordonnées de la campange 1 et 2
 
 ```{r}
 
-
-as(MonEch_v2@sample,"sf") %>%
-  mutate(id = rownames(.),
+EChCampagne2 <- MonEch_v2@sample %>%
+  as("sf")  %>%
+  mutate( ID = dplyr::row_number(),
          campagne = ifelse(MonEch_v2@isPriorPoint,
                            1 ,2
-                           ) 
-         ) %>%
+                           )
+         ) 
+
+EChCampagne2 %>%
   st_write("output/PointsZC_v2.shp",
+           delete_dsn = TRUE)
+```
+
+En tableau téléchargeable
+
+```{r}
+EChCampagne2 %>%
+  st_drop_geometry() %>%
+    as.data.frame() %>%
+
+datatable(
+    filter = 'top',
+    rownames = FALSE,
+    # colnames = ColHAPPOP ,
+    extensions = 'Buttons', 
+    options = list(
+      dom = 'Bfrtip',
+      buttons =
+        list('colvis', "copy", list(
+          extend = 'collection',
+          buttons = 
+            list(
+            list(extend = 'csv', 
+                 filename ="ZC"), 
+            list(extend = 'excel', 
+                 filename = "ZC")
+            ),
+          text = 'Download'
+        )
+        )
+      )
+    )
+
+```
+
+
+### Ajout de nouveaux sites pour la campagne 3
+
+Pour la campange 3, 28 nouveaux points peuvent être sélectionnés afin de compléter la grille et améliorer la couverture spatiale.
+
+
+Une solution consiste à placer les points de manière optimiser entre les observations existantes afin de compléter la couverture spatiale de manière homogène. Pour cela, on utilise l'argument `priorPoints` de la fonction `stratify`.
+
+Nous changeons ici de méthode de discrétisation de la zone pour améliorer le positionnement.
+Je repars du vecteur du contour de la zone cultivée et augmente la résolution de la grille de discrétisation.
+
+
+```{r}
+set.seed(313)
+
+crs(MonEch_v2@sample) <- crs(z)
+
+Messtrates_v3 <- spcosa::stratify(
+  as_Spatial(zc), 
+  nGridCells = 6000 ,
+  nStrata = n + 50 +  28, 
+  priorPoints = MonEch_v2@sample,
+  equalArea = FALSE,
+  nTry = 40
+  )
+
+```
+
+Tirer le centre des strates compactes
+
+```{r}
+MonEch_v3 <- spsample(Messtrates_v3)
+sc = plot(Messtrates_v3 ,MonEch_v3)
+sc
+
+```
+
+### Exportation
+
+On fait la synthèse des campagnes précédentes avec la nouvelle campagne
+
+```{r}
+
+EChCampagne3 <- as(MonEch_v3@sample,"sf") %>%
+  mutate(id = rownames(.),
+          tt =  c(EChCampagne2$campagne, rep(3, 28) )
+         ) %>%
+  mutate(
+           campagne = ifelse(MonEch_v3@isPriorPoint,
+                           tt ,3
+                           
+                           ) 
+           )
+
+
+EChCampagne3 %>%
+  st_write("output/PointsZC_v3.shp",
            delete_dsn = TRUE)
 ```
 
 En tableau
 
 ```{r}
-MonEch_v2@sample %>%
+MonEch_v3@sample %>%
   as.data.frame() %>%
   mutate( ID = dplyr::row_number(),
-         campagne = ifelse(MonEch_v2@isPriorPoint,
-                           1 ,2
+         campagne = ifelse(MonEch_v3@isPriorPoint,
+                           1 ,3
                            )
          ) %>%
 datatable(
@@ -514,4 +615,17 @@ datatable(
 
 ```
 
+### Graphique final
+
+```{r}
+library(tidyterra)
+st_crs(EChCampagne3) <- crs(z)
+
+ggplot() +
+  geom_spatvector(data= zc)+
+  geom_spatvector(data = EChCampagne3 %>%
+                    mutate(NoCampagne = factor(campagne)),
+                  aes(col= NoCampagne )
+                  )
+```
 

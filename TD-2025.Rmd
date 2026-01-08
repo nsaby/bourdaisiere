@@ -2,7 +2,12 @@
 title: "TD2026"
 author: "Nicolas Saby"
 date: "2026-01-07"
-output: html_document
+output: 
+  html_document: 
+    toc: true
+    highlight: pygments
+    theme: flatly
+    number_sections: true
 ---
 
 # La zone du domaine
@@ -35,9 +40,12 @@ tm_shape(strate) + tm_raster("clusters") +
 
 ```
 
+# tirage aléatoire du STSI
+
 Tirer au hasard 4 points par strates
 
-- avec st_sample
+Le plus simple reste d'utiliser la fonction `spatSample`
+
 
 ```{r}
 
@@ -60,7 +68,7 @@ tm_shape(strate) +
 
 ```
 
-modification des coordonnées dans un cercle de 10 m
+Pour assurer une bonne séléction aléatoire des positions, nous allons modifier les coordonnées des centres des pixels sélectionnés dans  un cercle de 7 m
 
 ```{r}
 
@@ -75,7 +83,7 @@ mysample$y1<-jitter(mysample$y,resolution)
 ```
 
 
-Exportation du shape file
+# Exportation du shape file
 
 ```{r}
 
