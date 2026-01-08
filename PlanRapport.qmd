@@ -250,9 +250,11 @@ ggarrange(p2,p1,ncol = 2)
 ### Exportation
 
 ```{r}
-mysample %>%
+UE2025 <- mysample %>%
   st_as_sf(coords=c("x","y"),
-           crs = 2154) %>%
+           crs = 2154) 
+
+UE2025 %>%
   st_write("output/PointsParc.shp",
            delete_dsn = TRUE)
 ```
@@ -286,15 +288,97 @@ datatable(
 
 ```
 
-### Ajout des points 2024
+### Ajout des points 2026
 
-Nous pouvons ajouter 28 pointsà savoir 3 par binôme et 7 par strate.
+Nous pouvons ajouter 28 pointsà savoir 3 par binôme et 7 par strate. Nous prenons 3 points de plus par strates.
+la fonction tire au hasard des pixels. Pour assurer une bonne séléction aléatoire des positions, nous allons modifier les coordonnées des centres des pixels sélectionnés dans  un cercle de 7 m
+
 
 ```{r}
-#total sample size
-n <- 28
 
 
+strates <-  rast(tt)[[4]]
+crs(strates) <- "+init=epsg:2154"
+  
+set.seed(13456)
+UE2026 <- spatSample( strates ,
+           size = 10,
+           as.points=TRUE,
+           method= "stratified")
+
+
+mysample <- cbind.data.frame(
+  geom(UE2026),
+  Strate = UE2026$clusters)
+
+resolution = 7
+mysample$x1<-jitter(mysample$x,resolution)
+mysample$y1<-jitter(mysample$y,resolution)
+
+```
+
+Regardons le résultats
+
+```{r}
+
+UE2026 <- mysample %>%
+  st_as_sf(coords=c("x","y"),
+           crs = 2154) 
+
+
+tm_shape(strates) + 
+  tm_raster("clusters" ,
+          col.scale = tm_scale_categorical(values = terrain.colors(4)) 
+          ) + 
+  tm_shape(UE2025) + 
+  tm_dots() +
+  tm_shape(UE2026) +
+  tm_symbols(fill = "Strate",size = .6,
+          fill.scale = tm_scale_categorical(n=4)
+)
+
+```
+
+Puis exportation
+
+
+```{r}
+
+library(sf)
+
+st_write(UE2026,
+                   dsn = "output/EchantDomaine2026.shp",
+                   delete_dsn = TRUE
+                   )
+
+
+```
+
+```{r}
+mysample %>%
+  dplyr::select(-x,-y) %>% 
+datatable(
+    filter = 'top',
+    rownames = FALSE,
+    # colnames = ColHAPPOP ,
+    extensions = 'Buttons', 
+    options = list(
+      dom = 'Bfrtip',
+      buttons =
+        list('colvis', "copy", list(
+          extend = 'collection',
+          buttons = 
+            list(
+            list(extend = 'csv', 
+                 filename ="Parc"), 
+            list(extend = 'excel', 
+                 filename = "Parc")
+            ),
+          text = 'Download'
+        )
+        )
+      )
+    )
 
 ```
 
